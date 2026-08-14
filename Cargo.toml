@@ -1,0 +1,73 @@
+[workspace]
+members = [
+    "crates/blpl",
+    "crates/bitloom-artifacts",
+    "crates/bitloom-build",
+    "crates/bitloom-cache",
+    "crates/bitloom-cli",
+    "crates/bitloom-config",
+    "crates/bitloom-core",
+    "crates/bitloom-flash",
+    "crates/bitloom-gowin",
+    "crates/bitloom-pack",
+    "crates/bitloom-pnr",
+    "crates/bitloom-snapshot",
+    "crates/bitloom-synthesis",
+    "crates/bitloom-ui",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+anyhow = "1"
+ariadne = { version = "0.6", features = ["auto-color"] }
+bitloom-artifacts = { path = "crates/bitloom-artifacts" }
+bitloom-build = { path = "crates/bitloom-build" }
+bitloom-cache = { path = "crates/bitloom-cache" }
+bitloom-config = { path = "crates/bitloom-config" }
+bitloom-core = { path = "crates/bitloom-core" }
+bitloom-flash = { path = "crates/bitloom-flash" }
+bitloom-gowin = { path = "crates/bitloom-gowin" }
+bitloom-pack = { path = "crates/bitloom-pack" }
+bitloom-pnr = { path = "crates/bitloom-pnr" }
+bitloom-snapshot = { path = "crates/bitloom-snapshot" }
+bitloom-synthesis = { path = "crates/bitloom-synthesis" }
+blake3 = { version = "1.8", features = ["serde"] }
+blpl = { path = "crates/blpl" }
+clap = { version = "4", features = ["derive"] }
+thiserror = "2"
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "sync",
+    "process",
+    "io-util",
+    "io-std",
+    "fs",
+    "time",
+    "signal"
+] }
+tokio-util = { version = "0.7", features = ["rt"] }
+daggy = { version = "0.9", features = ["stable_dag"] }
+dialoguer = "0.12"
+ratatui = { version = "0.30", features = ["crossterm"] }
+crossterm = { version = "0.29", features = ["event-stream"] }
+chumsky = { version = "0.13", features = ["pratt"] }
+futures-util = "0.3"
+globset = "0.4"
+owo-colors = "4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio-serial = "5"
+toml = "1"
+walkdir = "2"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "unwind"
+strip = "symbols"

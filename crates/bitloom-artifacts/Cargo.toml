@@ -1,0 +1,7 @@
+[package]
+name = "bitloom-artifacts"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitloom-core.workspace = true

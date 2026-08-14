@@ -1,0 +1,11 @@
+[package]
+name = "bitloom-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+daggy.workspace = true
+futures-util.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true

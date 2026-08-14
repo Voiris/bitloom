@@ -1,0 +1,11 @@
+[package]
+name = "blpl"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ariadne.workspace = true
+blake3.workspace = true
+chumsky.workspace = true
+serde.workspace = true
+serde_json.workspace = true

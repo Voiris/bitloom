@@ -1,0 +1,16 @@
+const BITSTREAM_OFFSET = 0x0;
+
+@flash_size(8MiB);
+@erase_size(default);
+@offset_align(auto);
+
+bitstream:
+  offset(BITSTREAM_OFFSET),
+  size(auto),
+  file($bitstream);
+
+firmware:
+  offset(0x0020_0000),
+  size(auto),
+  magic(sized(0x123456789ABCDEF, 8B)),
+  file("build/firmware.bin");

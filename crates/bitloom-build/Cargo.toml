@@ -1,0 +1,18 @@
+[package]
+name = "bitloom-build"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitloom-core.workspace = true
+bitloom-pack.workspace = true
+bitloom-pnr.workspace = true
+bitloom-snapshot.workspace = true
+bitloom-synthesis.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+bitloom-artifacts.workspace = true
+bitloom-cache.workspace = true
+blake3.workspace = true
+tokio.workspace = true

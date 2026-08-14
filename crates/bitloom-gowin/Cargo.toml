@@ -1,0 +1,18 @@
+[package]
+name = "bitloom-gowin"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitloom-artifacts.workspace = true
+bitloom-core.workspace = true
+bitloom-flash.workspace = true
+bitloom-pack.workspace = true
+bitloom-pnr.workspace = true
+bitloom-snapshot.workspace = true
+bitloom-synthesis.workspace = true
+blake3.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

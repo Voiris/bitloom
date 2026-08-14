@@ -1,0 +1,23 @@
+[package]
+name = "bitloom"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bitloom-build.workspace = true
+bitloom-cache.workspace = true
+bitloom-config.workspace = true
+bitloom-core.workspace = true
+bitloom-flash.workspace = true
+bitloom-gowin.workspace = true
+bitloom-pnr.workspace = true
+bitloom-snapshot.workspace = true
+bitloom-ui = { path = "../bitloom-ui" }
+clap.workspace = true
+crossterm.workspace = true
+dialoguer.workspace = true
+futures-util.workspace = true
+owo-colors.workspace = true
+tokio.workspace = true
+tokio-serial.workspace = true
