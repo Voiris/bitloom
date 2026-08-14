@@ -29,7 +29,7 @@ monitor.
 ## Requirements
 
 - Windows
-- Rust nightly with Cargo when building from source
+- Rust stable with Cargo when building from source
 - An extracted OSS CAD Suite installation
 - A supported Gowin FPGA board and its pin constraints
 
@@ -218,7 +218,7 @@ boundaries. Remaining differences from the old implementation are tracked in
 Format and validate the workspace with:
 
 ```powershell
-cargo fmt --all -- --check
+cargo +nightly fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 ```

@@ -10,19 +10,24 @@ changed.
 
 ## Tooling
 
-The Rust version and required components are pinned in `rust-toolchain.toml`.
-Formatting rules are defined in `rustfmt.toml`.
+The default Rust channel and required components are selected in
+`rust-toolchain.toml`. Formatting rules are defined in `rustfmt.toml` and use
+options that require nightly rustfmt. Install it separately with:
+
+```powershell
+rustup toolchain install nightly --profile minimal --component rustfmt
+```
 
 Format and validate changes with:
 
 ```powershell
-cargo fmt
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test
+cargo +nightly fmt
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
 ```
 
 Do not override the repository's rustfmt settings or add manual formatting that
-`cargo fmt` will remove.
+`cargo +nightly fmt` will remove.
 
 ## Language and naming
 
@@ -54,8 +59,8 @@ Use the terminology shown to users consistently:
 ## Imports
 
 Import ordering, grouping, and granularity are controlled by `rustfmt.toml`.
-Treat the output of `cargo fmt` as the source of truth instead of arranging
-imports manually.
+Treat the output of `cargo +nightly fmt` as the source of truth instead of
+arranging imports manually.
 
 Avoid glob imports outside tests. A test module may use `use super::*` when it
 is testing the adjacent implementation.

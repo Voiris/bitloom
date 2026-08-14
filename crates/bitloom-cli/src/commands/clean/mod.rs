@@ -251,8 +251,8 @@ async fn remove_entry(entry: &DeleteEntry) -> io::Result<bool> {
 
 fn progress_message(completed: usize, total: usize, width: usize) -> String {
     let completed = completed.min(total);
-    let filled = if total == 0 { width } else { completed.saturating_mul(width) / total };
-    let percentage = if total == 0 { 100 } else { completed.saturating_mul(100) / total };
+    let filled = completed.saturating_mul(width).checked_div(total).unwrap_or(width);
+    let percentage = completed.saturating_mul(100).checked_div(total).unwrap_or(100);
     format!(
         "cleaning [{}{}] {percentage:>3}%",
         PROGRESS_FILLED.repeat(filled),

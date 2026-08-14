@@ -93,7 +93,7 @@ impl Toolchain {
         }
 
         let mut environment = self.environment.iter().collect::<Vec<_>>();
-        environment.sort_by(|(first, _), (second, _)| first.cmp(second));
+        environment.sort_by_key(|(name, _)| *name);
         for (name, value) in environment {
             hash_os(&mut hasher, name);
             hash_os(&mut hasher, value);
