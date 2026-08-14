@@ -1,0 +1,112 @@
+name: Delivery
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delivery-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Windows package
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-delivery-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Build release binary
+        run: cargo build --package bitloom --release --all-features --locked
+
+      - name: Package binary
+        id: package
+        shell: pwsh
+        run: |
+          $metadata = cargo metadata --format-version 1 --no-deps | ConvertFrom-Json
+          $version = ($metadata.packages | Where-Object name -EQ "bitloom").version
+          if (-not $version) {
+              throw "bitloom package version is missing from Cargo metadata"
+          }
+
+          $name = "bitloom-v$version-x86_64-pc-windows-msvc"
+          New-Item -ItemType Directory -Force package/bitloom, dist | Out-Null
+          Copy-Item target/release/bitloom.exe package/bitloom/bitloom.exe
+          Copy-Item LICENSE package/bitloom/LICENSE
+          Set-Content package/bitloom/VERSION -Value $version -Encoding utf8
+          Compress-Archive -LiteralPath package/bitloom -DestinationPath "dist/$name.zip"
+
+          "archive=$name.zip" >> $env:GITHUB_OUTPUT
+
+      - name: Upload package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: dist/${{ steps.package.outputs.archive }}
+          if-no-files-found: error
+          archive: false
+
+  linux:
+    name: Linux package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-delivery-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Build release binary
+        run: cargo build --package bitloom --release --all-features --locked
+
+      - name: Package binary
+        id: package
+        shell: bash
+        run: |
+          version="$(
+            cargo metadata --format-version 1 --no-deps |
+              python3 -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "bitloom"))'
+          )"
+          name="bitloom-v${version}-x86_64-unknown-linux-gnu"
+
+          mkdir -p package/bitloom dist
+          install -m 755 target/release/bitloom package/bitloom/bitloom
+          install -m 644 LICENSE package/bitloom/LICENSE
+          printf '%s\n' "$version" > package/bitloom/VERSION
+          tar -C package -czf "dist/${name}.tar.gz" bitloom
+
+          echo "archive=$name.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Upload package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: dist/${{ steps.package.outputs.archive }}
+          if-no-files-found: error
+          archive: false
