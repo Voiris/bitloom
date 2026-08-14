@@ -14,13 +14,13 @@ The default Rust channel and required components are selected in
 `rust-toolchain.toml`. Formatting rules are defined in `rustfmt.toml` and use
 options that require nightly rustfmt. Install it separately with:
 
-```powershell
+```console
 rustup toolchain install nightly --profile minimal --component rustfmt
 ```
 
 Format and validate changes with:
 
-```powershell
+```console
 cargo +nightly fmt
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features

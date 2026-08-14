@@ -90,17 +90,19 @@ fn exercises_build_cache_flash_run_clean_and_logging() {
     assert_eq!(project.calls("yosys").len(), 1);
     assert_eq!(project.calls("nextpnr-").len(), 64);
     assert_eq!(project.calls("gowin_pack").len(), 1);
+    assert_eq!(project.calls("gdk").len(), usize::from(cfg!(windows)));
     assert_eq!(fs::read(project.root.join("build/bitstreams/top.fs")).unwrap(), b"fake bitstream");
     let log = fs::read_to_string(project.root.join("build/bitloom.log")).unwrap();
-    assert!(log.contains("COMMAND [2:top/yosys]"));
-    assert!(log.contains("STDOUT  [2:top/yosys] yosys fake stdout"));
-    assert!(log.contains("STDERR  [2:top/yosys] yosys fake stderr"));
-    assert!(log.contains("STATUS  [2:top/yosys] exited with"));
+    let yosys = if cfg!(windows) { "2:top/yosys" } else { "1:top/yosys" };
+    assert!(log.contains(&format!("COMMAND [{yosys}]")));
+    assert!(log.contains(&format!("STDOUT  [{yosys}] yosys fake stdout")));
+    assert!(log.contains(&format!("STDERR  [{yosys}] yosys fake stderr")));
+    assert!(log.contains(&format!("STATUS  [{yosys}] exited with")));
 
     project.clear_state();
     let cached = project.run(&["build"], &[]);
     assert_success("cached rebuild", &cached);
-    assert_eq!(project.calls("gdk").len(), 1);
+    assert_eq!(project.calls("gdk").len(), usize::from(cfg!(windows)));
     assert!(project.calls("yosys").is_empty());
     assert!(project.calls("nextpnr-").is_empty());
     assert!(project.calls("gowin_pack").is_empty());

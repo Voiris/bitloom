@@ -8,15 +8,23 @@ use bitloom_core::OutputFingerprint;
 use blake3::Hasher;
 use tokio::process::Command;
 
+#[cfg(windows)]
 use crate::process::run_tool;
 use crate::{ProcessObserver, ToolError};
 
 type CommandEnvironment = HashMap<OsString, OsString>;
 
+#[derive(Default)]
+struct ToolchainEnvironment {
+    variables: CommandEnvironment,
+    removals: Vec<OsString>,
+}
+
 #[derive(Clone)]
 pub struct Toolchain {
     root: Option<Arc<PathBuf>>,
     environment: Arc<CommandEnvironment>,
+    environment_removals: Arc<[OsString]>,
     observer: Arc<dyn ProcessObserver>,
     process_scope: Arc<str>,
 }
@@ -26,6 +34,7 @@ impl Default for Toolchain {
         Self {
             root: None,
             environment: Arc::new(CommandEnvironment::new()),
+            environment_removals: Arc::from(Vec::<OsString>::new()),
             observer: Arc::new(()),
             process_scope: Arc::from("toolchain"),
         }
@@ -41,7 +50,8 @@ impl Toolchain {
         let environment = oss_cad_environment(&path)?;
         Ok(Self {
             root: Some(Arc::new(path)),
-            environment: Arc::new(environment),
+            environment: Arc::new(environment.variables),
+            environment_removals: Arc::from(environment.removals),
             observer: Arc::new(()),
             process_scope: Arc::from("toolchain"),
         })
@@ -61,14 +71,20 @@ impl Toolchain {
         self.root.is_none()
     }
 
+    #[cfg(windows)]
     pub async fn refresh_gdk_cache(&self) -> Result<(), ToolError> {
         let Some(root) = &self.root else {
             return Ok(());
         };
         let executable = executable_path(&root.join("lib"), "gdk-pixbuf-query-loaders");
         let mut command = Command::new(executable);
-        command.arg("--update-cache").envs(self.environment.iter());
+        self.configure_command(command.arg("--update-cache"));
         run_tool(command, "gdk-pixbuf", self.process_scope.clone(), self.observer.clone()).await
+    }
+
+    #[cfg(not(windows))]
+    pub async fn refresh_gdk_cache(&self) -> Result<(), ToolError> {
+        Ok(())
     }
 
     pub async fn cache_fingerprint(&self) -> Result<OutputFingerprint, ToolError> {
@@ -98,13 +114,24 @@ impl Toolchain {
             hash_os(&mut hasher, name);
             hash_os(&mut hasher, value);
         }
+        for name in self.environment_removals.iter() {
+            hasher.update(b"removed\0");
+            hash_os(&mut hasher, name);
+        }
         Ok(OutputFingerprint::new(*hasher.finalize().as_bytes()))
     }
 
     pub(crate) fn command(&self, executable: &'static str) -> Command {
         let mut command = Command::new(executable);
-        command.envs(self.environment.iter());
+        self.configure_command(&mut command);
         command
+    }
+
+    fn configure_command(&self, command: &mut Command) {
+        command.envs(self.environment.iter());
+        for name in self.environment_removals.iter() {
+            command.env_remove(name);
+        }
     }
 
     pub(crate) fn process_observer(&self) -> Arc<dyn ProcessObserver> {
@@ -152,7 +179,8 @@ fn hash_os(hasher: &mut Hasher, value: &std::ffi::OsStr) {
     hasher.update(bytes);
 }
 
-fn oss_cad_environment(root: &Path) -> Result<CommandEnvironment, ToolError> {
+#[cfg(windows)]
+fn oss_cad_environment(root: &Path) -> Result<ToolchainEnvironment, ToolError> {
     let current_path = env::var_os("PATH").unwrap_or_default();
     let path = env::join_paths(
         [root.join("bin"), root.join("lib")].into_iter().chain(env::split_paths(&current_path)),
@@ -163,7 +191,7 @@ fn oss_cad_environment(root: &Path) -> Result<CommandEnvironment, ToolError> {
     environment.insert("SSL_CERT_FILE".into(), root.join("etc/cacert.pem").into_os_string());
     environment.insert("PATH".into(), path);
     environment.insert("PYTHON_EXECUTABLE".into(), root.join("lib/python3.exe").into_os_string());
-    environment.insert("QT_PLUGIN_PATH".into(), root.join("lib/qt5/plugins").into_os_string());
+    environment.insert("QT_PLUGIN_PATH".into(), root.join("lib/qt6/plugins").into_os_string());
     environment.insert("QT_LOGGING_RULES".into(), "*=false".into());
     environment.insert("GTK_EXE_PREFIX".into(), root.into());
     environment.insert("GTK_DATA_PREFIX".into(), root.into());
@@ -179,7 +207,23 @@ fn oss_cad_environment(root: &Path) -> Result<CommandEnvironment, ToolError> {
         "OPENFPGALOADER_SOJ_DIR".into(),
         root.join("share/openFPGALoader").into_os_string(),
     );
-    Ok(environment)
+    Ok(ToolchainEnvironment { variables: environment, removals: Vec::new() })
+}
+
+#[cfg(not(windows))]
+fn oss_cad_environment(root: &Path) -> Result<ToolchainEnvironment, ToolError> {
+    let current_path = env::var_os("PATH").unwrap_or_default();
+    let path = env::join_paths(
+        [root.join("bin"), root.join("py3bin")].into_iter().chain(env::split_paths(&current_path)),
+    )
+    .map_err(|error| ToolError::Environment { message: error.to_string() })?;
+    let variables = CommandEnvironment::from([
+        (OsString::from("PATH"), path),
+        (OsString::from("VIRTUAL_ENV"), root.into()),
+        (OsString::from("VERILATOR_ROOT"), root.join("share/verilator").into_os_string()),
+        (OsString::from("GHDL_PREFIX"), root.join("lib/ghdl").into_os_string()),
+    ]);
+    Ok(ToolchainEnvironment { variables, removals: vec![OsString::from("PYTHONHOME")] })
 }
 
 fn executable_path(directory: &Path, name: &str) -> PathBuf {
@@ -195,26 +239,50 @@ mod tests {
 
     #[test]
     fn creates_complete_oss_cad_suite_environment() {
-        let root = PathBuf::from("C:/oss-cad-suite");
+        let root = if cfg!(windows) {
+            PathBuf::from("C:/oss-cad-suite")
+        } else {
+            PathBuf::from("/opt/oss-cad-suite")
+        };
         let toolchain = Toolchain::from_path(&root).unwrap();
 
-        assert_eq!(
-            toolchain.environment.get(OsStr::new("YOSYSHQ_ROOT")),
-            Some(&root.into_os_string())
-        );
-        for name in [
-            "SSL_CERT_FILE",
-            "PATH",
-            "PYTHON_EXECUTABLE",
-            "QT_PLUGIN_PATH",
-            "QT_LOGGING_RULES",
-            "GTK_EXE_PREFIX",
-            "GTK_DATA_PREFIX",
-            "GDK_PIXBUF_MODULEDIR",
-            "GDK_PIXBUF_MODULE_FILE",
-            "OPENFPGALOADER_SOJ_DIR",
-        ] {
-            assert!(toolchain.environment.contains_key(OsStr::new(name)), "missing {name}");
+        #[cfg(windows)]
+        {
+            assert_eq!(
+                toolchain.environment.get(OsStr::new("YOSYSHQ_ROOT")).map(OsString::as_os_str),
+                Some(root.as_os_str())
+            );
+            for name in [
+                "SSL_CERT_FILE",
+                "PATH",
+                "PYTHON_EXECUTABLE",
+                "QT_PLUGIN_PATH",
+                "QT_LOGGING_RULES",
+                "GTK_EXE_PREFIX",
+                "GTK_DATA_PREFIX",
+                "GDK_PIXBUF_MODULEDIR",
+                "GDK_PIXBUF_MODULE_FILE",
+                "OPENFPGALOADER_SOJ_DIR",
+            ] {
+                assert!(toolchain.environment.contains_key(OsStr::new(name)), "missing {name}");
+            }
+            assert_eq!(
+                toolchain.environment.get(OsStr::new("QT_PLUGIN_PATH")),
+                Some(&root.join("lib/qt6/plugins").into_os_string())
+            );
+            assert!(toolchain.environment_removals.is_empty());
+        }
+
+        #[cfg(not(windows))]
+        {
+            for name in ["PATH", "VIRTUAL_ENV", "VERILATOR_ROOT", "GHDL_PREFIX"] {
+                assert!(toolchain.environment.contains_key(OsStr::new(name)), "missing {name}");
+            }
+            let path = env::split_paths(toolchain.environment.get(OsStr::new("PATH")).unwrap())
+                .take(2)
+                .collect::<Vec<_>>();
+            assert_eq!(path, [root.join("bin"), root.join("py3bin")]);
+            assert_eq!(toolchain.environment_removals.as_ref(), [OsString::from("PYTHONHOME")]);
         }
     }
 

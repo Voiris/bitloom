@@ -215,10 +215,12 @@ tasks.
 `[toolchain].path` identifies the OSS CAD Suite root rather than only an
 executable directory. The Gowin adapter derives one immutable environment and
 applies it to Yosys, nextpnr, gowin_pack and openFPGALoader processes. It
-contains the suite `bin` and `lib` directories in `PATH` plus YosysHQ, Python,
-SSL, Qt, GTK, GDK pixbuf and openFPGALoader data variables. `build` and `run`
-also refresh the suite GDK loader cache before graph execution. An empty path
-leaves process lookup and environment unchanged.
+matches the suite activation scripts for the host: Windows receives the
+`bin`/`lib`, Python, SSL, Qt, GTK, GDK pixbuf and openFPGALoader settings, while
+Unix receives `bin`/`py3bin`, virtual environment, Verilator and GHDL settings
+and has inherited `PYTHONHOME` removed. `build` and `run` refresh the suite GDK
+loader cache on Windows before graph execution. An empty path leaves process
+lookup and environment unchanged.
 
 ## Incremental cache
 

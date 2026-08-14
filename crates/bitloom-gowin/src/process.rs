@@ -13,6 +13,7 @@ use crate::{ProcessObserver, ProcessStream, ToolError};
 
 static NEXT_INVOCATION: AtomicU64 = AtomicU64::new(1);
 
+#[cfg(any(windows, test))]
 pub(crate) async fn run_tool(
     command: Command,
     tool: &'static str,

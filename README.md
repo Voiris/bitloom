@@ -28,13 +28,17 @@ monitor.
 
 ## Requirements
 
-- Windows
+- Windows or Linux
 - Rust stable with Cargo when building from source
 - An extracted OSS CAD Suite installation
 - A supported Gowin FPGA board and its pin constraints
 
-The OSS CAD Suite path can be stored in the project configuration. An empty
-path uses tools available through the process environment.
+The OSS CAD Suite path can be stored in the project configuration. Bitloom
+configures the suite environment for the host platform. An empty path uses
+tools available through the process environment instead.
+
+On Linux, programming and serial monitoring may require permission to access
+the board's USB and serial devices.
 
 ## Supported hardware
 
@@ -46,13 +50,13 @@ path uses tools available through the process environment.
 
 Build and install the binary from this repository:
 
-```powershell
+```console
 cargo install --path crates/bitloom-cli
 ```
 
 For local development, commands can also be run from the repository with:
 
-```powershell
+```console
 cargo run -p bitloom -- <command>
 ```
 
@@ -60,7 +64,7 @@ cargo run -p bitloom -- <command>
 
 Create a project:
 
-```powershell
+```console
 bitloom new
 ```
 
@@ -80,7 +84,7 @@ my-project/
 
 Update the pin constraints and RTL, then build from the project directory:
 
-```powershell
+```console
 cd my-project
 bitloom build
 ```
@@ -93,7 +97,7 @@ build/bitstreams/top.fs
 
 Build, program SRAM and open the serial monitor:
 
-```powershell
+```console
 bitloom run --sram
 ```
 
@@ -131,7 +135,7 @@ sources = ["rtl/**/*.sv", "rtl/**/*.v"]
 exclude = []
 
 [toolchain]
-path = "C:/oss-cad-suite"
+path = "/opt/oss-cad-suite"
 
 [target]
 vendor = "gowin"
@@ -143,7 +147,7 @@ cable = ""
 
 [monitor]
 baud = 115200
-port = "COM7"
+port = "/dev/ttyUSB0"
 rx = "utf8"
 tx = "text"
 tx_line_ending = "crlf"
@@ -154,6 +158,10 @@ top = "top"
 frequency_mhz = 27.0
 constraints = ["constraints/top.cst"]
 ```
+
+On Windows, paths such as `C:/oss-cad-suite` and ports such as `COM7` can be
+used instead. To use an already activated OSS CAD Suite environment on either
+platform, leave `toolchain.path` empty.
 
 Add another `[[bitstreams]]` table to build another top module:
 
@@ -217,7 +225,7 @@ boundaries. Remaining differences from the old implementation are tracked in
 
 Format and validate the workspace with:
 
-```powershell
+```console
 cargo +nightly fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
