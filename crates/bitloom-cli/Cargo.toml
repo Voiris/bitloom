@@ -18,6 +18,7 @@ clap.workspace = true
 crossterm.workspace = true
 dialoguer.workspace = true
 futures-util.workspace = true
+include_dir.workspace = true
 owo-colors.workspace = true
 tokio.workspace = true
 tokio-serial.workspace = true

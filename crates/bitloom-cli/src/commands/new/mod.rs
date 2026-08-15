@@ -1,3 +1,5 @@
+mod templates;
+
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail, ensure};
@@ -9,15 +11,30 @@ use dialoguer::{Confirm, Input, Select};
 use crate::cli::NewArgs;
 use crate::output;
 
-const SYSTEMVERILOG_STARTER: &[u8] = b"module top (\n    input  logic clk,\n    output logic led\n);\n    logic [23:0] counter = '0;\n\n    always_ff @(posedge clk) begin\n        counter <= counter + 1'b1;\n    end\n\n    assign led = counter[23];\nendmodule\n";
-const VERILOG_STARTER: &[u8] = b"module top (\n    input  wire clk,\n    output wire led\n);\n    reg [23:0] counter = 24'd0;\n\n    always @(posedge clk) begin\n        counter <= counter + 1'b1;\n    end\n\n    assign led = counter[23];\nendmodule\n";
-const CUSTOM_STARTER_CONSTRAINTS: &[u8] =
-    b"// Custom pinout. Add board-specific constraints for clk and led here.\n";
+const DEFAULT_TEMPLATE: &str = "empty";
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HdlLanguage {
     SystemVerilog,
     Verilog,
+}
+
+impl HdlLanguage {
+    const ALL: [Self; 2] = [Self::SystemVerilog, Self::Verilog];
+
+    const fn display_name(self) -> &'static str {
+        match self {
+            Self::SystemVerilog => "SystemVerilog",
+            Self::Verilog => "Verilog",
+        }
+    }
+
+    const fn template_name(self) -> &'static str {
+        match self {
+            Self::SystemVerilog => "systemverilog",
+            Self::Verilog => "verilog",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +46,7 @@ struct BoardAnswers {
 struct NewProjectAnswers {
     path: PathBuf,
     name: String,
+    template: String,
     hdl: HdlLanguage,
     board: BoardAnswers,
     toolchain_path: PathBuf,
@@ -50,7 +68,12 @@ async fn create_project(answers: NewProjectAnswers) -> Result<()> {
             "project directory is not empty: {}",
             path.display()
         );
-    } else {
+    }
+
+    let preset_name = answers.board.preset.map(BoardPreset::board_name);
+    let template = templates::resolve(&answers.template, answers.hdl.template_name(), preset_name)?;
+
+    if !tokio::fs::try_exists(&path).await? {
         tokio::fs::create_dir_all(&path)
             .await
             .with_context(|| format!("failed to create {}", path.display()))?;
@@ -58,22 +81,24 @@ async fn create_project(answers: NewProjectAnswers) -> Result<()> {
 
     let config = project_config(&answers.name, &answers.board, answers.toolchain_path);
     write_project_file(&path.join(bitloom_config::FILE_NAME), config.to_toml()?.as_bytes()).await?;
-    let (rtl_name, rtl_source) = match answers.hdl {
-        HdlLanguage::SystemVerilog => ("rtl/top.sv", SYSTEMVERILOG_STARTER),
-        HdlLanguage::Verilog => ("rtl/top.v", VERILOG_STARTER),
-    };
-    write_project_file(&path.join(rtl_name), rtl_source).await?;
-    write_project_file(
-        &path.join("constraints/top.cst"),
-        starter_constraints(answers.board.preset),
-    )
-    .await?;
+    template.write_to(&path).await?;
     write_project_file(
         &path.join("partition.blpl"),
         b"@flash_size(8MiB);\n@offset_align(4KiB);\n\ntop:\n  offset(0x0),\n  size(auto),\n  file($top);\n",
     )
     .await?;
     write_project_file(&path.join(".gitignore"), b"/build/\n").await?;
+    if answers.template != "empty"
+        && template.used_custom_constraints()
+        && let Some(preset) = answers.board.preset
+    {
+        output::warning(format_args!(
+            "template `{}` has no constraints for {}; using custom constraints; \
+             configure constraints/top.cst before building",
+            answers.template,
+            preset.display_name()
+        ));
+    }
     output::line(format_args!("Created Bitloom project at {}", path.display()))?;
     Ok(())
 }
@@ -96,12 +121,28 @@ fn prompt_new_project() -> Result<NewProjectAnswers> {
         .default(default_name)
         .validate_with(|input: &String| validate_project_name(input))
         .interact_text_on(&term)?;
+    let templates = templates::template_names();
+    ensure!(!templates.is_empty(), "no project templates are embedded");
+    let default_template =
+        templates.iter().position(|template| *template == DEFAULT_TEMPLATE).unwrap_or(0);
+    let template_index = Select::with_theme(&theme)
+        .with_prompt("Template")
+        .items(&templates)
+        .default(default_template)
+        .interact_on(&term)?;
+    let template = templates[template_index].to_owned();
+    let hdl_languages = HdlLanguage::ALL
+        .into_iter()
+        .filter(|hdl| templates::supports_hdl(&template, hdl.template_name()))
+        .collect::<Vec<_>>();
+    ensure!(!hdl_languages.is_empty(), "template `{template}` does not support any HDL language");
+    let hdl_names = hdl_languages.iter().map(|hdl| hdl.display_name()).collect::<Vec<_>>();
     let hdl_index = Select::with_theme(&theme)
         .with_prompt("HDL language")
-        .items(["SystemVerilog", "Verilog"])
+        .items(&hdl_names)
         .default(0)
         .interact_on(&term)?;
-    let hdl = if hdl_index == 0 { HdlLanguage::SystemVerilog } else { HdlLanguage::Verilog };
+    let hdl = hdl_languages[hdl_index];
     let board = prompt_board(&theme, &term)?;
     let toolchain = Input::<String>::with_theme(&theme)
         .with_prompt("OSS CAD Suite directory (empty uses PATH)")
@@ -113,7 +154,7 @@ fn prompt_new_project() -> Result<NewProjectAnswers> {
     } else {
         std::path::absolute(toolchain.trim()).context("failed to resolve toolchain directory")?
     };
-    Ok(NewProjectAnswers { path: PathBuf::from(path), name, hdl, board, toolchain_path })
+    Ok(NewProjectAnswers { path: PathBuf::from(path), name, template, hdl, board, toolchain_path })
 }
 
 fn prompt_board(theme: &ColorfulTheme, term: &Term) -> Result<BoardAnswers> {
@@ -232,15 +273,6 @@ fn validate_toolchain_path(input: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
-fn starter_constraints(board: Option<BoardPreset>) -> &'static [u8] {
-    match board {
-        Some(BoardPreset::TangNano20k) => {
-            b"// Tang Nano 20K onboard 27 MHz crystal and LED0.\nIO_LOC \"clk\" 4;\nIO_PORT \"clk\" IO_TYPE=LVCMOS33 PULL_MODE=UP;\nIO_LOC \"led\" 15;\nIO_PORT \"led\" IO_TYPE=LVCMOS33 DRIVE=8;\n"
-        }
-        None => CUSTOM_STARTER_CONSTRAINTS,
-    }
-}
-
 async fn write_project_file(path: &Path, contents: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
@@ -277,21 +309,6 @@ mod tests {
     }
 
     #[test]
-    fn tang_nano_20k_starter_constrains_the_onboard_clock() {
-        let constraints =
-            std::str::from_utf8(starter_constraints(Some(BoardPreset::TangNano20k))).unwrap();
-        assert!(constraints.contains("IO_LOC \"clk\" 4;"));
-        assert!(constraints.contains("IO_LOC \"led\" 15;"));
-    }
-
-    #[test]
-    fn custom_starter_requires_the_user_to_supply_a_pinout() {
-        let constraints = std::str::from_utf8(starter_constraints(None)).unwrap();
-        assert!(constraints.contains("Custom pinout"));
-        assert!(!constraints.contains("IO_LOC"));
-    }
-
-    #[test]
     fn custom_board_leaves_preset_strings_empty() {
         let board = BoardAnswers { preset: None, device: String::new() };
         let config = project_config("demo", &board, PathBuf::new());
@@ -320,6 +337,7 @@ mod tests {
         let answers = NewProjectAnswers {
             path: path.clone(),
             name: "integration-demo".to_owned(),
+            template: "empty".to_owned(),
             hdl: HdlLanguage::SystemVerilog,
             board: BoardAnswers {
                 preset: Some(BoardPreset::TangNano20k),
@@ -338,6 +356,11 @@ mod tests {
         let config = bitloom_config::load(&path).await.unwrap();
         assert_eq!(config.project.name, "integration-demo");
         assert_eq!(config.toolchain.path, PathBuf::from("fake-toolchain"));
+        assert_eq!(
+            tokio::fs::read_to_string(path.join("rtl/top.sv")).await.unwrap(),
+            "module top;\nendmodule\n"
+        );
+        assert!(tokio::fs::read(path.join("constraints/top.cst")).await.unwrap().is_empty());
 
         tokio::fs::remove_dir_all(path).await.unwrap();
     }

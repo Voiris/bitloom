@@ -68,8 +68,8 @@ Create a project:
 bitloom new
 ```
 
-The wizard asks for the project path, project name, HDL language, board and OSS
-CAD Suite directory. It produces this layout:
+The wizard asks for the project path, project name, template, HDL language,
+board and OSS CAD Suite directory. It produces this layout:
 
 ```text
 my-project/
