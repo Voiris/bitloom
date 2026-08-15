@@ -28,7 +28,6 @@ monitor.
 
 ## Requirements
 
-- Windows or Linux
 - Rust stable with Cargo when building from source
 - An extracted OSS CAD Suite installation
 - A supported Gowin FPGA board and its pin constraints
@@ -233,6 +232,10 @@ cargo test --workspace --all-features
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [Bitloom Style Guide](STYLE_GUIDE.md) before making changes.
+
+## Acknowledgements
+
+Bitloom's CLI and user experience are heavily inspired by Cargo and rustup.
 
 ## License
 
