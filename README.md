@@ -235,7 +235,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and the
 
 ## Acknowledgements
 
-Bitloom's CLI and user experience are heavily inspired by Cargo and rustup.
+Bitloom's CLI and user experience are heavily inspired by
+[Cargo](https://github.com/rust-lang/cargo) and
+[rustup](https://github.com/rust-lang/rustup).
 
 ## License
 
