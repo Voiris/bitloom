@@ -82,3 +82,16 @@ impl ProjectConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_unsupported_board_names() {
+        assert!(matches!(
+            BoardPreset::parse("not-a-real-board"),
+            Err(ConfigError::UnsupportedBoard { name }) if name == "not-a-real-board"
+        ));
+    }
+}
