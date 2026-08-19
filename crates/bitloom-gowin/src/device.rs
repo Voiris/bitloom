@@ -37,4 +37,22 @@ mod tests {
             GowinDevice { yosys_family: "gw2a", nextpnr_family: "GW2A-18C" }
         );
     }
+
+    #[test]
+    fn rejects_unsupported_vendors() {
+        assert!(matches!(
+            GowinDevice::resolve("not-a-real-vendor", "GW2AR-LV18QN88C8/I7"),
+            Err(GowinConfigError::UnsupportedVendor { vendor })
+                if vendor == "not-a-real-vendor"
+        ));
+    }
+
+    #[test]
+    fn rejects_unsupported_devices() {
+        assert!(matches!(
+            GowinDevice::resolve("gowin", "not-a-real-device"),
+            Err(GowinConfigError::UnsupportedDevice { device })
+                if device == "not-a-real-device"
+        ));
+    }
 }
