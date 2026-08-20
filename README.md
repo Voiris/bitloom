@@ -29,7 +29,7 @@ monitor.
 ## Requirements
 
 - Rust stable with Cargo when building from source
-- An extracted OSS CAD Suite installation
+- An extracted [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build) installation
 - A supported Gowin FPGA board and its pin constraints
 
 The OSS CAD Suite path can be stored in the project configuration. Bitloom
