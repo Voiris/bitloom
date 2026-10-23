@@ -12,8 +12,8 @@ stages, program SRAM or persistent flash, and open an interactive serial
 monitor.
 
 > [!WARNING]
-> Bitloom is under active development. Configuration and command-line
-> interfaces may change at any time.
+> Bitloom is currently on hold and is not under active development. The
+> project remains unfinished.
 
 ## Features
 
